@@ -4,9 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import fr.isen.meneroud.isensmartcompanion.models.ChatMessage
 
-@Database(entities = [ChatMessage::class], version = 1, exportSchema = false)
+@Database(entities = [ChatMessage::class], version = 2, exportSchema = false)
 abstract class ChatDatabase : RoomDatabase() {
     abstract fun chatMessageDao(): ChatMessageDao
 
@@ -20,7 +19,9 @@ abstract class ChatDatabase : RoomDatabase() {
                     context.applicationContext,
                     ChatDatabase::class.java,
                     "chat_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration() // ✅ Évite les erreurs de migration
+                    .build()
                 INSTANCE = instance
                 instance
             }

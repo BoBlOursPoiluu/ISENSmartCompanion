@@ -1,5 +1,6 @@
 package fr.isen.meneroud.isensmartcompanion.screens
 
+import android.icu.text.SimpleDateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import fr.isen.meneroud.isensmartcompanion.GeminiAI
+import fr.isen.meneroud.isensmartcompanion.database.ChatDatabase
+import fr.isen.meneroud.isensmartcompanion.database.ChatMessage
 import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.Locale
 
 
 @Composable
@@ -50,12 +55,15 @@ fun AssistantUI(apiKey: String) {
     val coroutineScope = rememberCoroutineScope()
     val geminiAI = remember { GeminiAI(apiKey) }
 
+    // Récupération de la base de données et du DAO
+    val database = ChatDatabase.getDatabase(context)
+    val chatDao = database.chatMessageDao()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
             .padding(top = 48.dp),
-
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -113,14 +121,24 @@ fun AssistantUI(apiKey: String) {
             IconButton(
                 onClick = {
                     if (question.isNotBlank()) {
-                        val userMessage = "Vous: $question"
-                        messages = messages + userMessage
-                        val input = question
+                        val userMessage = question
+                        messages = messages + "Vous: $userMessage"
                         question = ""
 
                         coroutineScope.launch {
-                            val response = geminiAI.analyzeText(input)
-                            messages = messages + "Gemini: $response"
+                            val response = geminiAI.analyzeText(userMessage)
+                            val aiResponse = response ?: "No response available"
+                            messages = messages + "Gemini: $aiResponse"
+
+                            // Enregistrement du message dans la base de données
+                            val chatMessage = ChatMessage(
+                                userMessage = userMessage,
+                                aiResponse = aiResponse,
+                                timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(
+                                    Date()
+                                )
+                            )
+                            chatDao.insertMessage(chatMessage)
                         }
                     }
                 },
@@ -133,3 +151,7 @@ fun AssistantUI(apiKey: String) {
         }
     }
 }
+
+
+
+

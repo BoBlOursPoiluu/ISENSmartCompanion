@@ -1,4 +1,4 @@
-package fr.isen.meneroud.isensmartcompanion.models
+package fr.isen.meneroud.isensmartcompanion.database
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -8,5 +8,5 @@ data class ChatMessage(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val userMessage: String,
     val aiResponse: String,
-    val timestamp: Long = System.currentTimeMillis() // Ajoute la date pour l'historique
+    val timestamp: String
 )
