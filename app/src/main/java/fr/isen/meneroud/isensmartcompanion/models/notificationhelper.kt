@@ -29,7 +29,9 @@ class NotificationHelper {
                 notificationManager.createNotificationChannel(channel)
             }
 
-            val intent = Intent(context, MainActivity::class.java)
+            val intent = Intent(context, MainActivity::class.java).apply {
+                putExtra("navigateTo", "Agenda") // Ajoute un extra pour savoir qu'on veut aller à Agenda
+            }
             val pendingIntent = PendingIntent.getActivity(
                 context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
