@@ -120,7 +120,7 @@ fun scheduleNotification(context: Context, event: Event) {
         .build()
 
     val workRequest = OneTimeWorkRequestBuilder<EventNotificationWorker>()
-        .setInitialDelay(5, TimeUnit.SECONDS) // Notification après 10 secondes
+        .setInitialDelay(10, TimeUnit.SECONDS) // Notification après 10 secondes
         .setInputData(notificationData)
         .build()
 

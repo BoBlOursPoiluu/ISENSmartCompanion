@@ -1,24 +1,28 @@
 package fr.isen.meneroud.isensmartcompanion.screens
 
-import android.icu.text.SimpleDateFormat
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,8 +40,6 @@ import fr.isen.meneroud.isensmartcompanion.GeminiAI
 import fr.isen.meneroud.isensmartcompanion.database.ChatDatabase
 import fr.isen.meneroud.isensmartcompanion.database.ChatMessage
 import kotlinx.coroutines.launch
-import java.util.Date
-import java.util.Locale
 
 
 @Composable
@@ -50,24 +52,42 @@ fun MainScreen(navController: NavController, apiKey: String) {
 @Composable
 fun AssistantUI(apiKey: String) {
     var question by remember { mutableStateOf("") }
-    var messages by remember { mutableStateOf(listOf<String>()) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val geminiAI = remember { GeminiAI(apiKey) }
 
-    // Récupération de la base de données et du DAO
+    // ✅ Liste des messages affichés (qui peut être nettoyée)
+    val displayedMessages = remember { mutableStateListOf<ChatMessage>() }
+
+    // ✅ Accès à la base de données et SharedPreferences
     val database = ChatDatabase.getDatabase(context)
     val chatDao = database.chatMessageDao()
+    val sharedPreferences = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+
+    // ✅ Vérifie si l'affichage a été nettoyé la dernière fois
+    val isCleared = remember { mutableStateOf(sharedPreferences.getBoolean("isCleared", false)) }
+
+    // ✅ Chargement des messages au lancement, sauf si l'affichage a été nettoyé
+    LaunchedEffect(Unit) {
+        if (!isCleared.value) {
+            chatDao.getAllMessages().collect { dbMessages ->
+                displayedMessages.clear()
+                displayedMessages.addAll(dbMessages)
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .padding(top = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        // ✅ Fixe l'entête en haut
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(
                 "ISEN",
                 fontSize = 48.sp,
@@ -82,76 +102,97 @@ fun AssistantUI(apiKey: String) {
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Column(modifier = Modifier.fillMaxWidth()) {
-                messages.forEach { msg ->
-                    Text(
-                        text = msg,
-                        fontSize = 16.sp,
-                        color = Color.Black,
-                        textAlign = if (msg.startsWith("You:")) TextAlign.End else TextAlign.Start,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                }
-            }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BasicTextField(
-                value = question,
-                onValueChange = { question = it },
+
+        // ✅ Affichage des messages si non nettoyé
+        if (!isCleared.value) {
+            LazyColumn(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(8.dp),
-                decorationBox = { innerTextField ->
-                    Box(
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                items(displayedMessages) { message ->
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp),
-                        contentAlignment = Alignment.CenterStart
+                            .padding(8.dp)
                     ) {
-                        if (question.isEmpty()) Text("Ask me anything...", color = Color.Gray)
-                        innerTextField()
+                        Text(
+                            text = "👤 ${message.userMessage}",
+                            fontSize = 16.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "🤖 ${message.aiResponse}",
+                            fontSize = 16.sp,
+                            color = Color.Blue
+                        )
+                        Text(
+                            text = "📅 ${message.timestamp}",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
-            )
-            IconButton(
-                onClick = {
-                    if (question.isNotBlank()) {
-                        val userMessage = question
-                        messages = messages + "Vous: $userMessage"
-                        question = ""
-
-                        coroutineScope.launch {
-                            val response = geminiAI.analyzeText(userMessage)
-                            val aiResponse = response ?: "No response available"
-                            messages = messages + "Gemini: $aiResponse"
-
-                            // Enregistrement du message dans la base de données
-                            val chatMessage = ChatMessage(
-                                userMessage = userMessage,
-                                aiResponse = aiResponse,
-                                timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(
-                                    Date()
-                                )
-                            )
-                            chatDao.insertMessage(chatMessage)
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .size(48.dp)
-                    .padding(8.dp)
-            ) {
-                Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.Red)
             }
         }
+
+        // ✅ Bouton plus discret pour vider l'affichage
+        OutlinedButton(
+            onClick = {
+                displayedMessages.clear()
+                sharedPreferences.edit().putBoolean("isCleared", true).apply()
+                isCleared.value = true
+            },
+            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, Color.Gray),
+            modifier = Modifier
+                .padding(vertical = 4.dp)
+                .size(120.dp, 32.dp)
+        ) {
+            Text("🧹 Nettoyer", fontSize = 12.sp, color = Color.Gray)
+        }
+
+        // ✅ Barre de question avec bouton d'envoi intégré
+        OutlinedTextField(
+            value = question,
+            onValueChange = { question = it },
+            label = { Text("Posez votre question...") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            singleLine = true,
+            trailingIcon = { // ✅ Ajout du bouton d'envoi dans le champ
+                IconButton(
+                    onClick = {
+                        if (question.isNotBlank()) {
+                            val userMessage = question
+                            question = ""
+
+                            coroutineScope.launch {
+                                val response = geminiAI.analyzeText(userMessage)
+                                val aiResponse = response ?: "No response available"
+
+                                val chatMessage = ChatMessage(
+                                    userMessage = userMessage,
+                                    aiResponse = aiResponse,
+                                    timestamp = System.currentTimeMillis().toString()
+                                )
+
+                                chatDao.insertMessage(chatMessage)
+                                displayedMessages.add(chatMessage)
+                                sharedPreferences.edit().putBoolean("isCleared", false).apply()
+                                isCleared.value = false
+                            }
+                        }
+                    }
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = "Envoyer", tint = Color.Red)
+                }
+            }
+        )
     }
 }
-
-
-
-
