@@ -69,12 +69,7 @@ fun AssistantUI(apiKey: String) {
 
     // ✅ Chargement des messages au lancement, sauf si l'affichage a été nettoyé
     LaunchedEffect(Unit) {
-        if (!isCleared.value) {
-            chatDao.getAllMessages().collect { dbMessages ->
-                displayedMessages.clear()
-                displayedMessages.addAll(dbMessages)
-            }
-        }
+        displayedMessages.clear()
     }
 
     Column(
